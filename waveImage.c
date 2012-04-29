@@ -2,7 +2,7 @@
  * waveImage.c
  *
  *  Created on: 25 May 2010
- *  Last Update: 20 June 2010
+ *  Last Update: 25 April 2012
  *  Author: Matthew Page
  */
 #include 	<stdlib.h>
@@ -21,7 +21,10 @@ int imageHeight = 175;
 int imageWidth = 480;
 int waveHeight = 150;
 int secondsPerTick = 5;
-int waveformColour;
+int white;
+int black;
+int leftColour;
+int rightColour;
 int textColour;
 int currentFile = 0;
 int currentPixel = 0;
@@ -58,14 +61,14 @@ void incrementTime(int s) {
  * draw a timeline on a newly created image
  */
 void drawTimeLine() {
-	int lineHeight = imageHeight - 10;
-	int textHeight = imageHeight - 22;
+	int lineHeight = gConfig.imageHeight - 10;
+	int textHeight = gConfig.imageHeight - 22;
 	int pixelsPerTick = gConfig.peaksPerSecond * secondsPerTick;
 
 	int i;
 	for (i = 0; i < (imageWidth + pixelsPerTick); i += pixelsPerTick) {
 		int position = i;
-		gdImageLine(imageHandle, position, lineHeight, position, imageHeight,
+		gdImageLine(imageHandle, position, lineHeight, position, gConfig.imageHeight,
 				textColour);
 
 		char newTime[8];
@@ -84,7 +87,12 @@ void drawTimeLine() {
  */
 void updateImageFile(bool finished) {
 	char imageFileName[256];
+	/*
 	sprintf(imageFileName, "%s%s%d.grow.png", gConfig.outputPath,
+			gConfig.baseFileName, currentFile);
+	*/
+	
+	sprintf(imageFileName, "%s%s%d.png", gConfig.outputPath,
 			gConfig.baseFileName, currentFile);
 
 	if (imageHasChanged == true) {
@@ -105,6 +113,7 @@ void updateImageFile(bool finished) {
 		debug(LOG_DEBUG, "Image hasn't changed, so not writing");
 	}
 
+	/*
 	if (finished == true) {
 		char newFileName[256];
 		sprintf(newFileName, "%s%s%d.png", gConfig.outputPath,
@@ -112,6 +121,7 @@ void updateImageFile(bool finished) {
 		debug(LOG_DEBUG, "Renaming image file: %s", newFileName);
 		rename(imageFileName, newFileName);
 	}
+	*/
 }
 
 /*
@@ -121,11 +131,20 @@ void startImageFile() {
 	debug(LOG_DEBUG, "Starting a new image file");
 
 	imageWidth = gConfig.peaksPerSecond * gConfig.secondsPerFile; // one minute per file
-
+	imageHeight = gConfig.imageHeight;
+	waveHeight = imageHeight - 25;
 	imageHandle = gdImageCreateTrueColor(imageWidth, imageHeight);
+	
+	white = gdImageColorAllocate(imageHandle, 255, 255, 255);
+	black = gdImageColorAllocate(imageHandle, 0, 0, 0);
+	leftColour  = gdImageColorAllocate(imageHandle, 255, 40, 0);
+	rightColour = gdImageColorAllocate(imageHandle, 0, 187, 63);
+	textColour  = gdImageColorAllocate(imageHandle, 0, 0, 0);
+	
+	gdImageFill(imageHandle, 0, 0, white);
+	gdImageColorTransparent(imageHandle, white);
+	
 	fontHandle = gdFontGetSmall();
-	waveformColour = gdImageColorAllocate(imageHandle, 0, 255, 0);
-	textColour = gdImageColorAllocate(imageHandle, 255, 255, 255);
 	currentPixel = 0;
 
 	drawTimeLine();
@@ -155,9 +174,16 @@ void drawMonoPeak(peaks_t peaks) {
 
 	int peakHigh = (abs(peaks.high) * 0.000030518) * pixelMultiplier;
 	int peakLow = (abs(peaks.low) * 0.000030518) * pixelMultiplier;
-
-	gdImageLine(imageHandle, currentPixel, origin - peakHigh, currentPixel,
-			origin + peakLow, waveformColour);
+	gdImageLine(imageHandle, currentPixel, origin - peakHigh, currentPixel, origin + peakLow, rightColour);
+	
+	/*
+	int peakHighFill = (origin - peakHigh) + 1;
+	if (peakHighFill > origin) peakHighFill = origin;
+	int peakLowFill = (origin + peakLow) - 1;
+	if (peakLowFill < origin) peakLowFill = origin;
+	gdImageLine(imageHandle, currentPixel, peakHighFill, currentPixel, peakLowFill, rightColour);
+	*/	
+	
 	currentPixel++;
 
 	if (currentPixel == imageWidth) {
@@ -177,21 +203,42 @@ void drawStereoPeak(peaks_t left, peaks_t right) {
 
 	int peakHigh;
 	int peakLow;
+	int peakHighFill;
+	int peakLowFill;
 	int quarter = waveHeight / 4;
 	int pixelMultiplier = quarter * 1.5;
 
+	// LEFT LEG
+	
 	int origin = quarter;
 	peakHigh = (abs(left.high) * 0.000030518) * pixelMultiplier;
 	peakLow = (abs(left.low) * 0.000030518) * pixelMultiplier;
-	gdImageLine(imageHandle, currentPixel, origin - peakHigh, currentPixel,
-			origin + peakLow, waveformColour);
+	gdImageLine(imageHandle, currentPixel, origin - peakHigh, currentPixel, origin + peakLow, leftColour);
+	
+	/*
+	peakHighFill = (origin - peakHigh) + 1;
+	if (peakHighFill > origin) peakHighFill = origin;
+	peakLowFill = (origin + peakLow) - 1;
+	if (peakLowFill < origin) peakLowFill = origin;
+	gdImageLine(imageHandle, currentPixel, peakHighFill, currentPixel, peakLowFill, leftColour);
+	*/
 
+	
+	// RIGHT LEG
+	
 	origin = quarter * 3;
 	peakHigh = (abs(right.high) * 0.000030518) * pixelMultiplier;
 	peakLow = (abs(right.low) * 0.000030518) * pixelMultiplier;
-	gdImageLine(imageHandle, currentPixel, origin - peakHigh, currentPixel,
-			origin + peakLow, waveformColour);
-
+	gdImageLine(imageHandle, currentPixel, origin - peakHigh, currentPixel, origin + peakLow, rightColour);
+	
+	/*
+	peakHighFill = (origin - peakHigh) + 1;
+	if (peakHighFill > origin) peakHighFill = origin;
+	peakLowFill = (origin + peakLow) - 1;
+	if (peakLowFill < origin) peakLowFill = origin;
+	gdImageLine(imageHandle, currentPixel, peakHighFill, currentPixel, peakLowFill, rightColour);
+	*/
+	 
 	currentPixel++;
 
 	if (currentPixel == imageWidth) {

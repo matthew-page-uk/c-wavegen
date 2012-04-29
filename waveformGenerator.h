@@ -2,14 +2,14 @@
  * waveformGenerator.h
  *
  *  Created on: 22 May 2010
- *  Last modified: 05 August 2011
+ *  Last modified: 25 April 2012
  *  Author: Matthew Page
  */
 
 #ifndef WAVEFORMGENERATOR_H_
 #define WAVEFORMGENERATOR_H_
 
-#define VERSION 	1.03
+#define VERSION 	1.41
 
 
 struct wg_config
@@ -28,6 +28,8 @@ struct wg_config
 
 	int peaksPerSecond;
 	int secondsPerFile;
+	
+	int imageHeight;
 }
 typedef wg_config;
 wg_config gConfig;

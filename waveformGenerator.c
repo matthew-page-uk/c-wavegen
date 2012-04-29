@@ -2,7 +2,7 @@
  * waveformGenerator.c
  *
  *  Created on: 13 May 2010
- *  Last modified: 05 August 2011
+ *  Last modified: 25 April 2012
  *  Author: Matthew Page
  */
 #include	<unistd.h>
@@ -31,6 +31,7 @@ static void defaultConfig()
 	gConfig.fileStartOffset = 0;
 	gConfig.waitTime		= 1;
 	gConfig.timesToCheck	= 5;
+	gConfig.imageHeight		= 175;
 }
 
 static int readArguments(int argc, char** argv)
@@ -72,6 +73,9 @@ static int readArguments(int argc, char** argv)
 				break;
 			case 'l':
 				gConfig.secondsPerFile = atoi(argv[++opts]);
+				break;
+			case 'h':
+				gConfig.imageHeight = atoi(argv[++opts]);
 				break;
 			}
 		}
@@ -121,6 +125,7 @@ static int readArguments(int argc, char** argv)
 	debug(LOG_INFO, "wait time: %d", gConfig.waitTime);
 	debug(LOG_INFO, "start time: %s", gConfig.startTime);
 	debug(LOG_INFO, "seconds per file: %d", gConfig.secondsPerFile);
+	debug(LOG_INFO, "image height: %d", gConfig.imageHeight);
 
 	return 0;
 }
@@ -129,7 +134,7 @@ static int readArguments(int argc, char** argv)
  * Main Function
  */
 int main(int argc, char** argv) {
-	fprintf(stderr, "waveformGenerator v%02.02f (c)Matthew Page, 2010-11\n", VERSION);
+	fprintf(stderr, "waveformGenerator v%02.02f (c)Matthew Page, 2010-12\n", VERSION);
 
 	defaultConfig();
 
@@ -161,7 +166,7 @@ int main(int argc, char** argv) {
 	bool reachedEndOfFile = false;
 	long filePosition = 0;
 	FILE *fpi;
-
+	
 	fpi = open_pcm(gConfig.inputFile);
 	seek_pcm(fpi, gConfig.fileStartOffset);
 
@@ -172,10 +177,35 @@ int main(int argc, char** argv) {
 	 */
 	while (continueReading == true)
 	{
-		samplesRead = fread(sampleBuffer, 2, sizeof(sampleBuffer) / 2, fpi);
-		if (ferror(fpi))
+		for (checkForDataCount = 0; checkForDataCount < gConfig.timesToCheck; checkForDataCount++)
 		{
-			debug(LOG_ALERT, "Error reading from file");
+			samplesRead = fread(sampleBuffer, 2, sizeof(sampleBuffer) / 2, fpi);
+			if (ferror(fpi))
+			{
+				debug(LOG_ALERT, "Error reading from file");
+			}
+			
+			if (samplesRead == 0) 
+			{
+				// wait for a while to see if the file is growing
+				updateImageFile(false);
+				
+				debug(LOG_DEBUG, "Waiting to see if file is still growing #%d", checkForDataCount);
+				filePosition = ftell(fpi);
+				sleep(gConfig.waitTime);
+				
+				close_pcm(fpi);
+				fpi = open_pcm(gConfig.inputFile);
+				seek_pcm(fpi, filePosition);
+			}
+			else
+			{
+				if (checkForDataCount > 0)
+				{
+					debug(LOG_DEBUG, "File is still growing...");
+				}
+				break;
+			}
 		}
 
 		if (samplesRead > 0)
@@ -224,43 +254,12 @@ int main(int argc, char** argv) {
 					sampleCount ++;
 				}
 			}
-
-			// reset reachedEndOfFile flag as we obviously haven't because we've just read some data
-			if (reachedEndOfFile == true)
-			{
-				debug(LOG_DEBUG, "File is still growing...");
-				reachedEndOfFile = false;
-				checkForDataCount = 0;
-			}
 		}
 		else
 		{
-			checkForDataCount++;
-
-			if (reachedEndOfFile == true)
-			{
-				// we've been here before so the file has stopped growing, so give up and finish
-				continueReading = false;
-				debug(LOG_DEBUG, "File has stopped growing");
-			}
-			else
-			{
-				// wait for a while to see if the file is growing
-				updateImageFile(false);
-
-				debug(LOG_DEBUG, "Waiting to see if file is still growing #%d", checkForDataCount);
-				filePosition = ftell(fpi);
-				sleep(gConfig.waitTime);
-
-				close_pcm(fpi);
-				fpi = open_pcm(gConfig.inputFile);
-				seek_pcm(fpi, filePosition);
-
-				if (checkForDataCount >= gConfig.timesToCheck)
-				{
-					reachedEndOfFile = true;
-				}
-			}
+			// we've been here before so the file has stopped growing, so give up and finish
+			continueReading = false;
+			debug(LOG_DEBUG, "File has stopped growing");
 		}
 	}
 
@@ -276,7 +275,22 @@ int main(int argc, char** argv) {
 FILE* open_pcm(char *filename)
 {
 	FILE *fp;
-	fp = fopen(filename, "rb");
+	
+	int i;
+	for (i=0; i < 10; i++)
+	{
+		fp = fopen(filename, "rb");
+		if (fp == NULL)
+		{
+			debug(LOG_DEBUG, "Trying to open file. Attempt #%d", i);
+			sleep(2);
+		}
+		else
+		{
+			break;
+		}
+	}
+
 	if (fp == NULL)
 	{
 		debug(LOG_ALERT, "Can't open input file %s", filename);

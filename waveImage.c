@@ -96,7 +96,7 @@ void updateImageFile(bool finished) {
 			gConfig.baseFileName, currentFile);
 
 	if (imageHasChanged == true) {
-		debug(LOG_DEBUG, "Writing image file: %s", imageFileName);
+		debug(LOG_DEBUG, "Writing image file: %s %d", imageFileName, currentFile);
 		FILE *fpimg;
 		fpimg = fopen(imageFileName, "wb");
 
